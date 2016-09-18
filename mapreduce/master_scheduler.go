@@ -26,7 +26,6 @@ func (master *Master) schedule(task *Task, proc string, filePathChan chan string
 	for filePath = range filePathChan {
 		operation = &Operation{proc, counter, filePath}
 		counter++
-
 		worker = <-master.idleWorkerChan
 		wg.Add(1)
 		go master.runOperation(worker, operation, &wg)
@@ -56,8 +55,12 @@ func (master *Master) runOperation(remoteWorker *RemoteWorker, operation *Operat
 
 	if err != nil {
 		log.Printf("Operation %v '%v' Failed. Error: %v\n", operation.proc, operation.id, err)
-		wg.Done()
 		master.failedWorkerChan <- remoteWorker
+		// Pega novo worker e envia a operation de novo
+		new_worker := <-master.idleWorkerChan
+		log.Printf(">>>Running failed operation %v (%v) again.", operation.id, operation.proc)
+		go master.runOperation(new_worker, operation, wg)
+
 	} else {
 		wg.Done()
 		master.idleWorkerChan <- remoteWorker
